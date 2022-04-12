@@ -59,7 +59,19 @@ import {
   stringToSubchannelAddress,
 } from './subchannel-address';
 import { parseUri } from './uri-parser';
-import { ChannelzCallTracker, ChannelzChildrenTracker, ChannelzTrace, registerChannelzServer, registerChannelzSocket, ServerInfo, ServerRef, SocketInfo, SocketRef, TlsInfo, unregisterChannelzRef } from './channelz';
+import {
+  ChannelzCallTracker,
+  ChannelzChildrenTracker,
+  ChannelzTrace,
+  registerChannelzServer,
+  registerChannelzSocket,
+  ServerInfo,
+  ServerRef,
+  SocketInfo,
+  SocketRef,
+  TlsInfo,
+  unregisterChannelzRef,
+} from './channelz';
 import { CipherNameAndProtocol, TLSSocket } from 'tls';
 
 const TRACER_NAME = 'server';
@@ -93,9 +105,8 @@ export interface UntypedServiceImplementation {
 }
 
 function getDefaultHandler(handlerType: HandlerType, methodName: string) {
-  const unimplementedStatusResponse = getUnimplementedStatusResponse(
-    methodName
-  );
+  const unimplementedStatusResponse =
+    getUnimplementedStatusResponse(methodName);
   switch (handlerType) {
     case 'unary':
       return (
@@ -138,7 +149,10 @@ interface ChannelzListenerInfo {
 }
 
 export class Server {
-  private http2ServerList: { server: (http2.Http2Server | http2.Http2SecureServer), channelzRef: SocketRef }[] = [];
+  private http2ServerList: {
+    server: http2.Http2Server | http2.Http2SecureServer;
+    channelzRef: SocketRef;
+  }[] = [];
 
   private handlers: Map<string, UntypedHandler> = new Map<
     string,
@@ -169,7 +183,7 @@ export class Server {
       // Dummy channelz ref that will never be used
       this.channelzRef = {
         kind: 'server',
-        id: -1
+        id: -1,
       };
     }
   }
@@ -179,27 +193,46 @@ export class Server {
       trace: this.channelzTrace,
       callTracker: this.callTracker,
       listenerChildren: this.listenerChildrenTracker.getChildLists(),
-      sessionChildren: this.sessionChildrenTracker.getChildLists()
+      sessionChildren: this.sessionChildrenTracker.getChildLists(),
     };
   }
 
-  private getChannelzSessionInfoGetter(session: http2.ServerHttp2Session): () => SocketInfo {
+  private getChannelzSessionInfoGetter(
+    session: http2.ServerHttp2Session
+  ): () => SocketInfo {
     return () => {
       const sessionInfo = this.sessions.get(session)!;
       const sessionSocket = session.socket;
-      const remoteAddress = sessionSocket.remoteAddress ? stringToSubchannelAddress(sessionSocket.remoteAddress, sessionSocket.remotePort) : null;
-      const localAddress = sessionSocket.localAddress ? stringToSubchannelAddress(sessionSocket.localAddress!, sessionSocket.localPort) : null;
+      const remoteAddress = sessionSocket.remoteAddress
+        ? stringToSubchannelAddress(
+            sessionSocket.remoteAddress,
+            sessionSocket.remotePort
+          )
+        : null;
+      const localAddress = sessionSocket.localAddress
+        ? stringToSubchannelAddress(
+            sessionSocket.localAddress!,
+            sessionSocket.localPort
+          )
+        : null;
       let tlsInfo: TlsInfo | null;
       if (session.encrypted) {
         const tlsSocket: TLSSocket = sessionSocket as TLSSocket;
-        const cipherInfo: CipherNameAndProtocol & {standardName?: string} = tlsSocket.getCipher();
+        const cipherInfo: CipherNameAndProtocol & { standardName?: string } =
+          tlsSocket.getCipher();
         const certificate = tlsSocket.getCertificate();
         const peerCertificate = tlsSocket.getPeerCertificate();
         tlsInfo = {
           cipherSuiteStandardName: cipherInfo.standardName ?? null,
-          cipherSuiteOtherName: cipherInfo.standardName ? null : cipherInfo.name,
-          localCertificate: (certificate && 'raw' in certificate) ? certificate.raw : null,
-          remoteCertificate: (peerCertificate && 'raw' in peerCertificate) ? peerCertificate.raw : null
+          cipherSuiteOtherName: cipherInfo.standardName
+            ? null
+            : cipherInfo.name,
+          localCertificate:
+            certificate && 'raw' in certificate ? certificate.raw : null,
+          remoteCertificate:
+            peerCertificate && 'raw' in peerCertificate
+              ? peerCertificate.raw
+              : null,
         };
       } else {
         tlsInfo = null;
@@ -216,20 +249,24 @@ export class Server {
         messagesReceived: sessionInfo.messagesReceived,
         keepAlivesSent: 0,
         lastLocalStreamCreatedTimestamp: null,
-        lastRemoteStreamCreatedTimestamp: sessionInfo.streamTracker.lastCallStartedTimestamp,
+        lastRemoteStreamCreatedTimestamp:
+          sessionInfo.streamTracker.lastCallStartedTimestamp,
         lastMessageSentTimestamp: sessionInfo.lastMessageSentTimestamp,
         lastMessageReceivedTimestamp: sessionInfo.lastMessageReceivedTimestamp,
         localFlowControlWindow: session.state.localWindowSize ?? null,
-        remoteFlowControlWindow: session.state.remoteWindowSize ?? null
+        remoteFlowControlWindow: session.state.remoteWindowSize ?? null,
       };
       return socketInfo;
     };
   }
 
   private trace(text: string): void {
-    logging.trace(LogVerbosity.DEBUG, TRACER_NAME, '(' + this.channelzRef.id + ') ' + text);
+    logging.trace(
+      LogVerbosity.DEBUG,
+      TRACER_NAME,
+      '(' + this.channelzRef.id + ') ' + text
+    );
   }
-  
 
   addProtoService(): never {
     throw new Error('Not implemented. Use addService() instead');
@@ -349,9 +386,8 @@ export class Server {
       maxSendHeaderBlockLength: Number.MAX_SAFE_INTEGER,
     };
     if ('grpc-node.max_session_memory' in this.options) {
-      serverOptions.maxSessionMemory = this.options[
-        'grpc-node.max_session_memory'
-      ];
+      serverOptions.maxSessionMemory =
+        this.options['grpc-node.max_session_memory'];
     }
     if ('grpc.max_concurrent_streams' in this.options) {
       serverOptions.settings = {
@@ -361,7 +397,7 @@ export class Server {
 
     const deferredCallback = (error: Error | null, port: number) => {
       process.nextTick(() => callback(error, port));
-    }
+    };
 
     const setupServer = (): http2.Http2Server | http2.Http2SecureServer => {
       let http2Server: http2.Http2Server | http2.Http2SecureServer;
@@ -375,7 +411,9 @@ export class Server {
           /* These errors need to be handled by the user of Http2SecureServer,
            * according to https://github.com/nodejs/node/issues/35824 */
           socket.on('error', (e: Error) => {
-            this.trace('An incoming TLS connection closed with error: ' + e.message);
+            this.trace(
+              'An incoming TLS connection closed with error: ' + e.message
+            );
           });
         });
       } else {
@@ -397,7 +435,9 @@ export class Server {
       }
       return Promise.all(
         addressList.map((address) => {
-          this.trace('Attempting to bind ' + subchannelAddressToString(address));
+          this.trace(
+            'Attempting to bind ' + subchannelAddressToString(address)
+          );
           let addr: SubchannelAddress;
           if (isTcpSubchannelAddress(address)) {
             addr = {
@@ -411,9 +451,14 @@ export class Server {
           const http2Server = setupServer();
           return new Promise<number | Error>((resolve, reject) => {
             const onError = (err: Error) => {
-              this.trace('Failed to bind ' + subchannelAddressToString(address) + ' with error ' + err.message);
+              this.trace(
+                'Failed to bind ' +
+                  subchannelAddressToString(address) +
+                  ' with error ' +
+                  err.message
+              );
               resolve(err);
-            }
+            };
 
             http2Server.once('error', onError);
 
@@ -422,47 +467,60 @@ export class Server {
               let boundSubchannelAddress: SubchannelAddress;
               if (typeof boundAddress === 'string') {
                 boundSubchannelAddress = {
-                  path: boundAddress
+                  path: boundAddress,
                 };
               } else {
                 boundSubchannelAddress = {
                   host: boundAddress.address,
-                  port: boundAddress.port
-                }
+                  port: boundAddress.port,
+                };
               }
               let channelzRef: SocketRef;
               if (this.channelzEnabled) {
-                channelzRef = registerChannelzSocket(subchannelAddressToString(boundSubchannelAddress), () => {
-                  return {
-                    localAddress: boundSubchannelAddress,
-                    remoteAddress: null,
-                    security: null,
-                    remoteName: null,
-                    streamsStarted: 0,
-                    streamsSucceeded: 0,
-                    streamsFailed: 0,
-                    messagesSent: 0,
-                    messagesReceived: 0,
-                    keepAlivesSent: 0,
-                    lastLocalStreamCreatedTimestamp: null,
-                    lastRemoteStreamCreatedTimestamp: null,
-                    lastMessageSentTimestamp: null,
-                    lastMessageReceivedTimestamp: null,
-                    localFlowControlWindow: null,
-                    remoteFlowControlWindow: null
-                  };
-                });
+                channelzRef = registerChannelzSocket(
+                  subchannelAddressToString(boundSubchannelAddress),
+                  () => {
+                    return {
+                      localAddress: boundSubchannelAddress,
+                      remoteAddress: null,
+                      security: null,
+                      remoteName: null,
+                      streamsStarted: 0,
+                      streamsSucceeded: 0,
+                      streamsFailed: 0,
+                      messagesSent: 0,
+                      messagesReceived: 0,
+                      keepAlivesSent: 0,
+                      lastLocalStreamCreatedTimestamp: null,
+                      lastRemoteStreamCreatedTimestamp: null,
+                      lastMessageSentTimestamp: null,
+                      lastMessageReceivedTimestamp: null,
+                      localFlowControlWindow: null,
+                      remoteFlowControlWindow: null,
+                    };
+                  }
+                );
                 this.listenerChildrenTracker.refChild(channelzRef);
               } else {
                 channelzRef = {
                   kind: 'socket',
                   id: -1,
-                  name: ''
+                  name: '',
                 };
               }
-              this.http2ServerList.push({server: http2Server, channelzRef: channelzRef});
-              this.trace('Successfully bound ' + subchannelAddressToString(boundSubchannelAddress));
-              resolve('port' in boundSubchannelAddress ? boundSubchannelAddress.port : portNum);
+              this.http2ServerList.push({
+                server: http2Server,
+                channelzRef: channelzRef,
+              });
+              this.trace(
+                'Successfully bound ' +
+                  subchannelAddressToString(boundSubchannelAddress)
+              );
+              resolve(
+                'port' in boundSubchannelAddress
+                  ? boundSubchannelAddress.port
+                  : portNum
+              );
               http2Server.removeListener('error', onError);
             });
           });
@@ -496,9 +554,14 @@ export class Server {
       const http2Server = setupServer();
       return new Promise<BindResult>((resolve, reject) => {
         const onError = (err: Error) => {
-          this.trace('Failed to bind ' + subchannelAddressToString(address) + ' with error ' + err.message);
+          this.trace(
+            'Failed to bind ' +
+              subchannelAddressToString(address) +
+              ' with error ' +
+              err.message
+          );
           resolve(bindWildcardPort(addressList.slice(1)));
-        }
+        };
 
         http2Server.once('error', onError);
 
@@ -506,47 +569,50 @@ export class Server {
           const boundAddress = http2Server.address() as AddressInfo;
           const boundSubchannelAddress: SubchannelAddress = {
             host: boundAddress.address,
-            port: boundAddress.port
+            port: boundAddress.port,
           };
           let channelzRef: SocketRef;
           if (this.channelzEnabled) {
-            channelzRef = registerChannelzSocket(subchannelAddressToString(boundSubchannelAddress), () => {
-              return {
-                localAddress: boundSubchannelAddress,
-                remoteAddress: null,
-                security: null,
-                remoteName: null,
-                streamsStarted: 0,
-                streamsSucceeded: 0,
-                streamsFailed: 0,
-                messagesSent: 0,
-                messagesReceived: 0,
-                keepAlivesSent: 0,
-                lastLocalStreamCreatedTimestamp: null,
-                lastRemoteStreamCreatedTimestamp: null,
-                lastMessageSentTimestamp: null,
-                lastMessageReceivedTimestamp: null,
-                localFlowControlWindow: null,
-                remoteFlowControlWindow: null
-              };
-            });
+            channelzRef = registerChannelzSocket(
+              subchannelAddressToString(boundSubchannelAddress),
+              () => {
+                return {
+                  localAddress: boundSubchannelAddress,
+                  remoteAddress: null,
+                  security: null,
+                  remoteName: null,
+                  streamsStarted: 0,
+                  streamsSucceeded: 0,
+                  streamsFailed: 0,
+                  messagesSent: 0,
+                  messagesReceived: 0,
+                  keepAlivesSent: 0,
+                  lastLocalStreamCreatedTimestamp: null,
+                  lastRemoteStreamCreatedTimestamp: null,
+                  lastMessageSentTimestamp: null,
+                  lastMessageReceivedTimestamp: null,
+                  localFlowControlWindow: null,
+                  remoteFlowControlWindow: null,
+                };
+              }
+            );
             this.listenerChildrenTracker.refChild(channelzRef);
           } else {
             channelzRef = {
               kind: 'socket',
               id: -1,
-              name: ''
+              name: '',
             };
           }
-          this.http2ServerList.push({server: http2Server, channelzRef: channelzRef});
-          this.trace('Successfully bound ' + subchannelAddressToString(boundSubchannelAddress));
-          resolve(
-            bindSpecificPort(
-              addressList.slice(1),
-              boundAddress.port,
-              1
-            )
+          this.http2ServerList.push({
+            server: http2Server,
+            channelzRef: channelzRef,
+          });
+          this.trace(
+            'Successfully bound ' +
+              subchannelAddressToString(boundSubchannelAddress)
           );
+          resolve(bindSpecificPort(addressList.slice(1), boundAddress.port, 1));
           http2Server.removeListener('error', onError);
         });
       });
@@ -561,7 +627,10 @@ export class Server {
         // We only want one resolution result. Discard all future results
         resolverListener.onSuccessfulResolution = () => {};
         if (addressList.length === 0) {
-          deferredCallback(new Error(`No addresses resolved for port ${port}`), 0);
+          deferredCallback(
+            new Error(`No addresses resolved for port ${port}`),
+            0
+          );
           return;
         }
         let bindResultPromise: Promise<BindResult>;
@@ -614,7 +683,8 @@ export class Server {
   forceShutdown(): void {
     // Close the server if it is still running.
 
-    for (const {server: http2Server, channelzRef: ref} of this.http2ServerList) {
+    for (const { server: http2Server, channelzRef: ref } of this
+      .http2ServerList) {
       if (http2Server.listening) {
         http2Server.close(() => {
           if (this.channelzEnabled) {
@@ -670,7 +740,7 @@ export class Server {
     if (
       this.http2ServerList.length === 0 ||
       this.http2ServerList.every(
-        ({server: http2Server}) => http2Server.listening !== true
+        ({ server: http2Server }) => http2Server.listening !== true
       )
     ) {
       throw new Error('server must be bound in order to start');
@@ -705,7 +775,8 @@ export class Server {
     // Close the server if necessary.
     this.started = false;
 
-    for (const {server: http2Server, channelzRef: ref} of this.http2ServerList) {
+    for (const { server: http2Server, channelzRef: ref } of this
+      .http2ServerList) {
       if (http2Server.listening) {
         pendingChecks++;
         http2Server.close(() => {
@@ -718,12 +789,12 @@ export class Server {
       }
     }
 
-    this.sessions.forEach((channelzInfo, session) => {
-      if (!session.closed) {
-        pendingChecks += 1;
-        session.close(maybeCallback);
-      }
-    });
+    // this.sessions.forEach((channelzInfo, session) => {
+    //   if (!session.closed) {
+    //     pendingChecks += 1;
+    //     session.close(maybeCallback);
+    //   }
+    // });
     if (pendingChecks === 0) {
       wrappedCallback();
     }
@@ -736,7 +807,7 @@ export class Server {
   /**
    * Get the channelz reference object for this server. The returned value is
    * garbage if channelz is disabled for this server.
-   * @returns 
+   * @returns
    */
   getChannelzRef() {
     return this.channelzRef;
@@ -752,7 +823,9 @@ export class Server {
     http2Server.on(
       'stream',
       (stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders) => {
-        const channelzSessionInfo = this.sessions.get(stream.session as http2.ServerHttp2Session);
+        const channelzSessionInfo = this.sessions.get(
+          stream.session as http2.ServerHttp2Session
+        );
         if (this.channelzEnabled) {
           this.callTracker.addCallStarted();
           channelzSessionInfo?.streamTracker.addCallStarted();
@@ -834,12 +907,19 @@ export class Server {
             });
           }
           const metadata = call.receiveMetadata(headers);
-          const encoding = (metadata.get('grpc-encoding')[0] as string | undefined) ?? 'identity';
+          const encoding =
+            (metadata.get('grpc-encoding')[0] as string | undefined) ??
+            'identity';
           metadata.remove('grpc-encoding');
 
           switch (handler.type) {
             case 'unary':
-              handleUnary(call, handler as UntypedUnaryHandler, metadata, encoding);
+              handleUnary(
+                call,
+                handler as UntypedUnaryHandler,
+                metadata,
+                encoding
+              );
               break;
             case 'clientStream':
               handleClientStreaming(
@@ -873,7 +953,7 @@ export class Server {
             call = new Http2ServerCallStream(stream, null!, this.options);
             if (this.channelzEnabled) {
               this.callTracker.addCallFailed();
-              channelzSessionInfo?.streamTracker.addCallFailed()
+              channelzSessionInfo?.streamTracker.addCallFailed();
             }
           }
 
@@ -894,13 +974,16 @@ export class Server {
 
       let channelzRef: SocketRef;
       if (this.channelzEnabled) {
-        channelzRef = registerChannelzSocket(session.socket.remoteAddress ?? 'unknown', this.getChannelzSessionInfoGetter(session));
+        channelzRef = registerChannelzSocket(
+          session.socket.remoteAddress ?? 'unknown',
+          this.getChannelzSessionInfoGetter(session)
+        );
       } else {
         channelzRef = {
           kind: 'socket',
           id: -1,
-          name: ''
-        }
+          name: '',
+        };
       }
 
       const channelzSessionInfo: ChannelzSessionInfo = {
@@ -909,18 +992,24 @@ export class Server {
         messagesSent: 0,
         messagesReceived: 0,
         lastMessageSentTimestamp: null,
-        lastMessageReceivedTimestamp: null
+        lastMessageReceivedTimestamp: null,
       };
 
       this.sessions.set(session, channelzSessionInfo);
       const clientAddress = session.socket.remoteAddress;
       if (this.channelzEnabled) {
-        this.channelzTrace.addTrace('CT_INFO', 'Connection established by client ' + clientAddress);
+        this.channelzTrace.addTrace(
+          'CT_INFO',
+          'Connection established by client ' + clientAddress
+        );
         this.sessionChildrenTracker.refChild(channelzRef);
       }
       session.on('close', () => {
         if (this.channelzEnabled) {
-          this.channelzTrace.addTrace('CT_INFO', 'Connection dropped by client ' + clientAddress);
+          this.channelzTrace.addTrace(
+            'CT_INFO',
+            'Connection dropped by client ' + clientAddress
+          );
           this.sessionChildrenTracker.unrefChild(channelzRef);
           unregisterChannelzRef(channelzRef);
         }
